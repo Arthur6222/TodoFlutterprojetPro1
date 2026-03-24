@@ -7,14 +7,46 @@ class Note {
   final String texte;
   final DateTime date;
   final String? type;
+  final int? typeId;
+  final int priorite;
 
-  Note({required this.id, required this.texte, required this.date, this.type});
+  Note({
+    required this.id,
+    required this.texte,
+    required this.date,
+    this.type,
+    this.typeId,
+    this.priorite = 0,
+  });
 
-  factory Note.fromMap(Map<String, dynamic> map) => Note(
-        id: map['id'],
-        texte: map['texte'],
-        date: DateTime.parse(map['date']),
-        type: map['type'],
+  factory Note.fromMap(Map<String, dynamic> map) {
+    final typeData = map['types'];
+    final typeMap = typeData is List
+        ? (typeData.isNotEmpty ? typeData.first as Map<String, dynamic> : null)
+        : (typeData as Map<String, dynamic>?);
+
+    return Note(
+      id: map['id_notes'],
+      texte: map['texte'],
+      date: DateTime.parse(map['created_at']),
+      type: typeMap?['label'],
+      typeId: map['id__types'],
+      priorite: typeMap?['priorite'] ?? 0,
+    );
+  }
+}
+
+class NoteType {
+  final int id;
+  final String label;
+  final int priorite;
+
+  NoteType({required this.id, required this.label, required this.priorite});
+
+  factory NoteType.fromMap(Map<String, dynamic> map) => NoteType(
+        id: map['id__types'],
+        label: map['label'],
+        priorite: map['priorite'],
       );
 }
 
@@ -28,6 +60,7 @@ class NotePage extends StatefulWidget {
 class _NotePageState extends State<NotePage> {
   final _supabase = Supabase.instance.client; 
   List<Note> _notes = []; 
+  List<NoteType> _types = [];
   bool _loading = true;
   String _username = '';
 
@@ -35,6 +68,7 @@ class _NotePageState extends State<NotePage> {
   void initState() {
     super.initState();
     _getUsername();
+    _loadTypes();
     _loadNotes();
   }
 
@@ -49,60 +83,70 @@ class _NotePageState extends State<NotePage> {
     setState(() => _loading = true);
     try {
       final box = await Hive.openBox('auth');
-      final username = box.get('username');
+      final idUser = box.get('id_user');
       
-      if (username == null) return;
+      if (idUser == null) {
+        setState(() => _loading = false);
+        return;
+      }
 
       final data = await _supabase
           .from('notes')
-          .select()
-          .eq('username', username)
-          .order('date', ascending: false);
+          .select('id_notes, texte, created_at, id__types, types(label, priorite)')
+          .eq('id_user', idUser)
+          .order('created_at', ascending: false);
 
       setState(() {
         _notes = (data as List).map((e) => Note.fromMap(e)).toList();
-        _notes.sort((a, b) {
-          int priorite(String? type) {
-            if (type == 'Important') return 3;
-            if (type == 'À regarder') return 2;
-            if (type == 'Pas important') return 1;
-            return 0;
-          }
-          return priorite(b.type).compareTo(priorite(a.type));
-        });
+        _notes.sort((a, b) => b.priorite.compareTo(a.priorite));
         _loading = false;
       });
     } catch (e) {
-      print('Erreur lors du chargement: $e');
+      debugPrint('Erreur lors du chargement: $e');
       setState(() => _loading = false);
     }
   }
 
-  Future<void> _addNote(String texte, String? type) async {
+  Future<void> _loadTypes() async {
+    try {
+      final data = await _supabase
+          .from('types')
+          .select('id__types, label, priorite')
+          .order('priorite', ascending: false);
+
+      setState(() {
+        _types = (data as List).map((e) => NoteType.fromMap(e)).toList();
+      });
+    } catch (e) {
+      debugPrint('Erreur lors du chargement des types: $e');
+    }
+  }
+
+  Future<void> _addNote(String texte, int? typeId) async {
     final box = await Hive.openBox('auth');
-    final username = box.get('username');
+    final idUser = box.get('id_user');
     
-    if (username == null) return;
+    if (idUser == null) return;
 
     await _supabase.from('notes').insert({
       'texte': texte,
-      'date': DateTime.now().toIso8601String(),
-      'type': type,
-      'username': username,
+      'created_at': DateTime.now().toIso8601String(),
+      'id__types': typeId,
+      'id_user': idUser,
     });
     _loadNotes();
   }
 
-  Future<void> _updateNote(int id, String texte, String? type) async {
+  Future<void> _updateNote(int id, String texte, int? typeId) async {
     await _supabase.from('notes').update({
       'texte': texte,
-      'type': type,   
-    }).eq('id', id);
+      'id__types': typeId,   
+    }).eq('id_notes', id);
     _loadNotes();
   }
 
   Future<void> _suppr(int id) async {
-    await _supabase.from('notes').delete().eq('id', id);
+    await _supabase.from('notes').delete().eq('id_notes', id);
     _loadNotes();
   } 
 
@@ -132,6 +176,7 @@ class _NotePageState extends State<NotePage> {
     if (confirm == true) {
       final box = await Hive.openBox('auth');
       await box.delete('username');
+      await box.delete('id_user');
     }
   }
 
@@ -150,7 +195,7 @@ class _NotePageState extends State<NotePage> {
 
   void _showDialog({Note? note}) {
     final controller = TextEditingController(text: note?.texte ?? '');
-    String? selectedType = note?.type;
+    int? selectedTypeId = note?.typeId;
     final isEditing = note != null;
 
     showDialog(
@@ -168,20 +213,24 @@ class _NotePageState extends State<NotePage> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: selectedType,
+                initialValue: selectedTypeId?.toString(),
                 decoration: const InputDecoration(
                   labelText: 'Priorité',
                   border: OutlineInputBorder(),
                 ),
-                items: const [
-                  DropdownMenuItem(value: null, child: Text('Aucune')),
-                  DropdownMenuItem(value: 'Pas important', child: Text('🟢 Pas important')),
-                  DropdownMenuItem(value: 'À regarder', child: Text('🟠 À regarder')),
-                  DropdownMenuItem(value: 'Important', child: Text('🔴 Important')),
+                items: [
+                  const DropdownMenuItem<String>(value: '', child: Text('Aucune')),
+                  ..._types.map(
+                    (t) => DropdownMenuItem<String>(
+                      value: t.id.toString(),
+                      child: Text(t.label),
+                    ),
+                  ),
                 ],
                 onChanged: (value) {
                   setDialogState(() {
-                    selectedType = value;
+                    selectedTypeId =
+                        (value == null || value.isEmpty) ? null : int.tryParse(value);
                   });
                 },
               ),
@@ -197,8 +246,8 @@ class _NotePageState extends State<NotePage> {
                 if (controller.text.trim().isNotEmpty) {
                   Navigator.pop(ctx);
                   isEditing 
-                    ? _updateNote(note.id, controller.text.trim(), selectedType) 
-                    : _addNote(controller.text.trim(), selectedType);
+                    ? _updateNote(note.id, controller.text.trim(), selectedTypeId) 
+                    : _addNote(controller.text.trim(), selectedTypeId);
                 }
               },
               child: Text(isEditing ? 'Modifier' : 'Ajouter'),

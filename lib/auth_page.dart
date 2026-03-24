@@ -67,7 +67,7 @@ class _AuthPageState extends State<AuthPage> {
     
     final result = await _supabase
         .from('users')
-        .select()
+        .select('id_user, password')
         .eq('username', username)
         .maybeSingle();
 
@@ -83,12 +83,15 @@ class _AuthPageState extends State<AuthPage> {
     }
 
     final box = await Hive.openBox('auth');
+    await box.put('id_user', result['id_user']);
     await box.put('username', username);
     
     _showMessage('Connexion réussie !');
   }
 
   Future<void> _register(String username, String password) async {
+    final idUser = username;
+
     final existing = await _supabase
         .from('users')
         .select()
@@ -100,11 +103,13 @@ class _AuthPageState extends State<AuthPage> {
       return;
     }
     await _supabase.from('users').insert({
+      'id_user': idUser,
       'username': username,
       'password': password,
       'created_at': DateTime.now().toIso8601String(),
     });
     final box = await Hive.openBox('auth');
+    await box.put('id_user', idUser);
     await box.put('username', username);
     
     _showMessage('Inscription réussie !');
