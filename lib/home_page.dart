@@ -2,16 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-// ---------------------------------------------------------------------------
-//  Modèles
-// ---------------------------------------------------------------------------
 class Note {
-  final int      id;
-  final String   texte;
+  final int id;
+  final String texte;
   final DateTime date;
-  final String?  type;
-  final int?     typeId;
-  final int      priorite;
+  final String? type;
+  final int? typeId;
+  final int priorite;
 
   Note({
     required this.id,
@@ -23,32 +20,29 @@ class Note {
   });
 
   factory Note.fromMap(Map<String, dynamic> map) => Note(
-        id:       map['id_notes'],
-        texte:    map['texte'],
-        date:     DateTime.parse(map['created_at']),
-        type:     map['type_label'],
-        typeId:   map['id__types'],
+        id: map['id_notes'],
+        texte: map['texte'],
+        date: DateTime.parse(map['created_at']),
+        type: map['type_label'],
+        typeId: map['id__types'],
         priorite: map['type_priorite'] ?? 0,
       );
 }
 
 class NoteType {
-  final int    id;
+  final int id;
   final String label;
-  final int    priorite;
+  final int priorite;
 
   NoteType({required this.id, required this.label, required this.priorite});
 
   factory NoteType.fromMap(Map<String, dynamic> map) => NoteType(
-        id:       map['id__types'],
-        label:    map['label'],
+        id: map['id__types'],
+        label: map['label'],
         priorite: map['priorite'],
       );
 }
 
-// ---------------------------------------------------------------------------
-//  Page principale
-// ---------------------------------------------------------------------------
 class NotePage extends StatefulWidget {
   const NotePage({super.key});
 
@@ -58,10 +52,10 @@ class NotePage extends StatefulWidget {
 
 class _NotePageState extends State<NotePage> {
   final _supabase = Supabase.instance.client;
-  List<Note>     _notes    = [];
-  List<NoteType> _types    = [];
-  bool           _loading  = true;
-  String         _username = '';
+  List<Note> _notes = [];
+  List<NoteType> _types = [];
+  bool _loading = true;
+  String _username = '';
 
   @override
   void initState() {
@@ -70,9 +64,6 @@ class _NotePageState extends State<NotePage> {
     _initData();
   }
 
-  // -------------------------------------------------------------------------
-  //  Initialisation séquentielle : types AVANT notes
-  // -------------------------------------------------------------------------
   Future<void> _initData() async {
     await _loadTypes();
     await _loadNotes();
@@ -84,27 +75,12 @@ class _NotePageState extends State<NotePage> {
     setState(() => _username = box.get('username', defaultValue: 'Utilisateur'));
   }
 
-  // -------------------------------------------------------------------------
-  //  Chargement des types de priorité
-  // -------------------------------------------------------------------------
   Future<void> _loadTypes() async {
     try {
-      var data = await _supabase
+      final data = await _supabase
           .from('types')
           .select('id__types, label, priorite')
           .order('priorite', ascending: false);
-
-      if ((data as List).isEmpty) {
-        await _supabase.from('types').insert([
-          {'label': 'Pas important', 'priorite': 1},
-          {'label': 'A regarder',    'priorite': 2},
-          {'label': 'Important',     'priorite': 3},
-        ]);
-        data = await _supabase
-            .from('types')
-            .select('id__types, label, priorite')
-            .order('priorite', ascending: false);
-      }
 
       if (!mounted) return;
       setState(() {
@@ -115,15 +91,12 @@ class _NotePageState extends State<NotePage> {
     }
   }
 
-  // -------------------------------------------------------------------------
-  //  Chargement des notes
-  // -------------------------------------------------------------------------
   Future<void> _loadNotes() async {
     if (!mounted) return;
     setState(() => _loading = true);
 
     try {
-      final box    = await Hive.openBox('auth');
+      final box = await Hive.openBox('auth');
       final idUser = box.get('id_user');
 
       if (idUser == null) {
@@ -138,11 +111,12 @@ class _NotePageState extends State<NotePage> {
           .order('created_at', ascending: false);
 
       final typeById = {for (final t in _types) t.id: t};
-      final mapped   = (data as List).map((e) {
-        final row       = Map<String, dynamic>.from(e as Map);
+
+      final mapped = (data as List).map((e) {
+        final row = Map<String, dynamic>.from(e as Map);
         final rowTypeId = row['id__types'] as int?;
-        final rowType   = rowTypeId != null ? typeById[rowTypeId] : null;
-        row['type_label']    = rowType?.label;
+        final rowType = rowTypeId != null ? typeById[rowTypeId] : null;
+        row['type_label'] = rowType?.label;
         row['type_priorite'] = rowType?.priorite ?? 0;
         return Note.fromMap(row);
       }).toList();
@@ -158,18 +132,15 @@ class _NotePageState extends State<NotePage> {
     }
   }
 
-  // -------------------------------------------------------------------------
-  //  CRUD
-  // -------------------------------------------------------------------------
   Future<void> _addNote(String texte, int? typeId) async {
-    final box    = await Hive.openBox('auth');
+    final box = await Hive.openBox('auth');
     final idUser = box.get('id_user');
     if (idUser == null) return;
 
     await _supabase.from('notes').insert({
-      'texte':     texte,
+      'texte': texte,
       'id__types': typeId,
-      'id_user':   idUser,
+      'id_user': idUser,
     });
     await _loadNotes();
   }
@@ -177,8 +148,7 @@ class _NotePageState extends State<NotePage> {
   Future<void> _updateNote(int id, String texte, int? typeId) async {
     await _supabase
         .from('notes')
-        .update({'texte': texte, 'id__types': typeId})
-        .eq('id_notes', id);
+        .update({'texte': texte, 'id__types': typeId}).eq('id_notes', id);
     await _loadNotes();
   }
 
@@ -187,9 +157,6 @@ class _NotePageState extends State<NotePage> {
     await _loadNotes();
   }
 
-  // -------------------------------------------------------------------------
-  //  Déconnexion
-  // -------------------------------------------------------------------------
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -217,13 +184,9 @@ class _NotePageState extends State<NotePage> {
       final box = await Hive.openBox('auth');
       await box.delete('username');
       await box.delete('id_user');
-      // AuthHandler détecte le changement via listenable → retour AuthPage
     }
   }
 
-  // -------------------------------------------------------------------------
-  //  Couleur badge priorité
-  // -------------------------------------------------------------------------
   Color _couleur(String? type) {
     switch (type) {
       case 'Important':
@@ -238,43 +201,41 @@ class _NotePageState extends State<NotePage> {
     }
   }
 
-  // -------------------------------------------------------------------------
-  //  Dialog ajout / modification
-  // -------------------------------------------------------------------------
   void _showDialog({Note? note}) {
-    final controller  = TextEditingController(text: note?.texte ?? '');
-    final isEditing   = note != null;
-
-    // FIX : on utilise une variable locale String? pour le DropdownButtonFormField
-    // (initialValue n'existe pas → on passe par value + setState du dialog)
+    final controller = TextEditingController(text: note?.texte ?? '');
+    final isEditing = note != null;
     String? selectedValue = note?.typeId?.toString();
-    int?    selectedTypeId = note?.typeId;
+    int? selectedTypeId = note?.typeId;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(isEditing ? 'Modifier' : 'Ajouter'),
+          title: Text(isEditing ? 'Modifier la note' : 'Ajouter une note'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: controller,
-                decoration:
-                    const InputDecoration(hintText: 'Texte de la tâche'),
+                decoration: const InputDecoration(
+                  hintText: 'Texte de la tâche',
+                  border: OutlineInputBorder(),
+                ),
                 maxLines: 3,
                 autofocus: true,
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: selectedValue,           // FIX : value et non initialValue
+                value: selectedValue,
                 decoration: const InputDecoration(
                   labelText: 'Priorité',
                   border: OutlineInputBorder(),
                 ),
                 items: [
                   const DropdownMenuItem<String>(
-                      value: null, child: Text('Aucune')),
+                    value: null,
+                    child: Text('Aucune'),
+                  ),
                   ..._types.map(
                     (t) => DropdownMenuItem<String>(
                       value: t.id.toString(),
@@ -288,10 +249,11 @@ class _NotePageState extends State<NotePage> {
                     ),
                   ),
                 ],
-                onChanged: (value) {
+                onChanged: (val) {
                   setDialogState(() {
-                    selectedValue  = value;
-                    selectedTypeId = value == null ? null : int.tryParse(value);
+                    selectedValue = val;
+                    selectedTypeId =
+                        val != null ? int.tryParse(val) : null;
                   });
                 },
               ),
@@ -305,13 +267,18 @@ class _NotePageState extends State<NotePage> {
             ElevatedButton(
               onPressed: () {
                 final texte = controller.text.trim();
-                if (texte.isNotEmpty) {
-                  Navigator.pop(ctx);
-                  isEditing
-                      ? _updateNote(note.id, texte, selectedTypeId)
-                      : _addNote(texte, selectedTypeId);
+                if (texte.isEmpty) return;
+                Navigator.pop(ctx);
+                if (isEditing) {
+                  _updateNote(note.id, texte, selectedTypeId);
+                } else {
+                  _addNote(texte, selectedTypeId);
                 }
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amberAccent[700],
+                foregroundColor: Colors.black,
+              ),
               child: Text(isEditing ? 'Modifier' : 'Ajouter'),
             ),
           ],
@@ -320,9 +287,6 @@ class _NotePageState extends State<NotePage> {
     );
   }
 
-  // -------------------------------------------------------------------------
-  //  UI
-  // -------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -330,7 +294,9 @@ class _NotePageState extends State<NotePage> {
         title: const Text(
           'Flutter Supanotes',
           style: TextStyle(
-              color: Colors.amberAccent, fontWeight: FontWeight.bold),
+            color: Colors.amberAccent,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: Colors.black,
         actions: [
@@ -344,9 +310,10 @@ class _NotePageState extends State<NotePage> {
                   Text(
                     _username,
                     style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500),
+                      color: Colors.white70,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -373,13 +340,21 @@ class _NotePageState extends State<NotePage> {
                       Icon(Icons.note_alt_outlined,
                           size: 80, color: Colors.grey[400]),
                       const SizedBox(height: 16),
-                      Text('Aucune note',
-                          style: TextStyle(
-                              fontSize: 20, color: Colors.grey[600])),
+                      Text(
+                        'Aucune note',
+                        style: TextStyle(
+                          fontSize: 20,
+                          color: Colors.grey[600],
+                        ),
+                      ),
                       const SizedBox(height: 8),
-                      Text('Appuyez sur + pour ajouter une note',
-                          style: TextStyle(
-                              fontSize: 14, color: Colors.grey[500])),
+                      Text(
+                        'Appuyez sur + pour ajouter une note',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[500],
+                        ),
+                      ),
                     ],
                   ),
                 )
@@ -394,7 +369,7 @@ class _NotePageState extends State<NotePage> {
                       child: ListTile(
                         leading: note.type != null
                             ? Container(
-                                width:  12,
+                                width: 12,
                                 height: 12,
                                 decoration: BoxDecoration(
                                   color: _couleur(note.type),
@@ -402,8 +377,10 @@ class _NotePageState extends State<NotePage> {
                                 ),
                               )
                             : null,
-                        title: Text(note.texte,
-                            style: const TextStyle(fontSize: 16)),
+                        title: Text(
+                          note.texte,
+                          style: const TextStyle(fontSize: 16),
+                        ),
                         subtitle: Text(
                           '${note.date.day.toString().padLeft(2, '0')}'
                           '/${note.date.month.toString().padLeft(2, '0')}'

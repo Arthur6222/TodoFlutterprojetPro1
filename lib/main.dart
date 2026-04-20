@@ -4,18 +4,14 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'home_page.dart';
 import 'auth_page.dart';
 
-// ⚠️  En production : déplacez ces valeurs dans un fichier .env
-//     et ajoutez .env dans votre .gitignore.
-const supaurl     = 'https://rumnmiuqomekxcpusdwh.supabase.co';
-const supaanonkey =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'
-    '.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1bW5taXVxb21la3hjcHVzZHdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3Mjg4MTgsImV4cCI6MjA5MDMwNDgxOH0'
-    '.lbcJxo3a3tJRZOMPS5pkR1ZdonOt6d3Sw6OJwYkWycE';
+const supabaseUrl = 'https://shskjwkytwfjlpkwezlw.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNoc2tqd2t5dHdmamxwa3dlemx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDMwNzYsImV4cCI6MjA4OTg3OTA3Nn0.RxKebN76muPzcifxqkhP52jfPiuDi27LcIRAdOD5uk0';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
-  await Supabase.initialize(url: supaurl, anonKey: supaanonkey);
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
   runApp(const MyApp());
 }
 
@@ -43,9 +39,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-//  AuthHandler — écoute Hive et bascule entre AuthPage et NotePage
-// ---------------------------------------------------------------------------
 class AuthHandler extends StatefulWidget {
   const AuthHandler({super.key});
 
@@ -55,8 +48,8 @@ class AuthHandler extends StatefulWidget {
 
 class _AuthHandlerState extends State<AuthHandler> {
   bool _isLoggedIn = false;
-  bool _loading    = true;
-  Box?  _authBox;
+  bool _loading = true;
+  Box? _authBox;
 
   @override
   void initState() {
@@ -75,7 +68,7 @@ class _AuthHandlerState extends State<AuthHandler> {
     final username = _authBox?.get('username');
     setState(() {
       _isLoggedIn = username != null;
-      _loading    = false;
+      _loading = false;
     });
   }
 

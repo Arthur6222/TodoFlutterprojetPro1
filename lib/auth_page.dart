@@ -1,12 +1,8 @@
-import 'dart:convert';
-import 'package:crypto/crypto.dart';          
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Hashage SHA-256 du mot de passe avant tout envoi réseau
-String _hashPassword(String password) =>
-    sha256.convert(utf8.encode(password)).toString();
+
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -20,8 +16,8 @@ class _AuthPageState extends State<AuthPage> {
   final _passwordController = TextEditingController();
   final _supabase = Supabase.instance.client;
 
-  bool _loading         = false;
-  bool _isLoginMode     = true;   // true = connexion, false = inscription
+  bool _loading = false;
+  bool _isLoginMode = true;
   bool _obscurePassword = true;
 
   @override
@@ -31,9 +27,6 @@ class _AuthPageState extends State<AuthPage> {
     super.dispose();
   }
 
-  // -------------------------------------------------------------------------
-  //  Validation + dispatch
-  // -------------------------------------------------------------------------
   Future<void> _handleAuth() async {
     final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
@@ -65,11 +58,8 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
-  // -------------------------------------------------------------------------
-  //  Connexion
-  // -------------------------------------------------------------------------
   Future<void> _login(String username, String password) async {
-    final hashedPwd = _hashPassword(password);
+    
 
     final result = await _supabase
         .from('users')
@@ -82,26 +72,19 @@ class _AuthPageState extends State<AuthPage> {
       return;
     }
 
-    // Comparaison du hash (jamais le mot de passe en clair)
-    if (result['password'] != hashedPwd) {
+    if (result['password'] != password) {
       _showMessage('Mot de passe incorrect');
       return;
     }
 
-    // Stockage local : on garde l'UUID renvoyé par Supabase
     final box = await Hive.openBox('auth');
     await box.put('id_user', result['id_user'].toString());
     await box.put('username', username);
 
     _showMessage('Connexion réussie !');
-    // AuthHandler détecte le changement via listenable → navigation auto
   }
 
-  // -------------------------------------------------------------------------
-  //  Inscription
-  // -------------------------------------------------------------------------
   Future<void> _register(String username, String password) async {
-    // Vérification doublon
     final existing = await _supabase
         .from('users')
         .select('id_user')
@@ -113,13 +96,11 @@ class _AuthPageState extends State<AuthPage> {
       return;
     }
 
-    // INSERT — id_user est un UUID généré par Supabase (gen_random_uuid())
-    // On récupère l'UUID créé via select()
     final inserted = await _supabase
         .from('users')
         .insert({
           'username': username,
-          'password': _hashPassword(password),   // SHA-256, jamais le clair
+          'password': password,
         })
         .select('id_user')
         .single();
@@ -129,12 +110,8 @@ class _AuthPageState extends State<AuthPage> {
     await box.put('username', username);
 
     _showMessage('Inscription réussie !');
-    // AuthHandler détecte le changement via listenable → navigation auto
   }
 
-  // -------------------------------------------------------------------------
-  //  Helpers
-  // -------------------------------------------------------------------------
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -145,9 +122,6 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
-  // -------------------------------------------------------------------------
-  //  UI
-  // -------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -183,22 +157,19 @@ class _AuthPageState extends State<AuthPage> {
                     style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 32),
-
-                  // Champ username
                   TextField(
                     controller: _usernameController,
                     textInputAction: TextInputAction.next,
                     decoration: InputDecoration(
                       labelText: "Nom d'utilisateur",
-                      hintText: 'Entrez votre pseudo',
+                      hintText: "Entrez votre nom d'utilisateur",
                       prefixIcon: const Icon(Icons.person),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Champ mot de passe
                   TextField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
@@ -216,12 +187,11 @@ class _AuthPageState extends State<AuthPage> {
                             () => _obscurePassword = !_obscurePassword),
                       ),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
-
-                  // Bouton principal
                   if (_loading)
                     const CircularProgressIndicator()
                   else
@@ -233,20 +203,20 @@ class _AuthPageState extends State<AuthPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.amberAccent[700],
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         child: Text(
                           _isLoginMode ? 'Se connecter' : "S'inscrire",
                           style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
                         ),
                       ),
                     ),
                   const SizedBox(height: 16),
-
-                  // Basculer mode
                   TextButton(
                     onPressed: () =>
                         setState(() => _isLoginMode = !_isLoginMode),
@@ -255,9 +225,10 @@ class _AuthPageState extends State<AuthPage> {
                           ? "Pas de compte ? S'inscrire"
                           : 'Déjà un compte ? Se connecter',
                       style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.amberAccent[700],
-                          fontWeight: FontWeight.w600),
+                        fontSize: 14,
+                        color: Colors.amberAccent[700],
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
